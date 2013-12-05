@@ -15,10 +15,15 @@ import org.scribe.model.Token;
 import org.scribe.model.Verb;
 import org.scribe.oauth.OAuthService;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
+
 import com.mongodb.DBObject;
 import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
 
 import java.io.*;
 import java.util.HashMap;
@@ -30,7 +35,7 @@ public class Main {
     private static String API_KEY = "xxxxxxxxxxxxxx";
     private static String API_SECRET = "xxxxxxxxxxxxxx";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception{
 
 
         Token accessToken = null;
@@ -38,8 +43,8 @@ public class Main {
         //Using the Scribe library we enter the information needed to begin the chain of Oauth2 calls.
         OAuthService service = new ServiceBuilder()
                                 .provider(LinkedInApi.class)
-                                .apiKey("uxvvzwe38x2p")
-                                .apiSecret("PkabNwB0M3J065mT")
+                                .apiKey("pv1u0dfas1uq")
+                                .apiSecret("cdwXcpXzJhdXEI0n")
                                 .build();
 
         /*************************************
@@ -70,42 +75,46 @@ public class Main {
         /*LinkedInAPI Call*/
         System.out.println();
         System.out.println("**************Insert Data into Database*************");
-        String url = "http://api.linkedin.com/v1/people/~/connections:(firstName,lastName,headline,site-standard-profile-request:(url))?format=json";       
+        
+        String url="http://api.linkedin.com/v1/people-search:(people:(first-name,last-name,public-profile-url,headline))?keywords=TAMU&format=json";
+               	       
         OAuthRequest request = new OAuthRequest(Verb.GET, url);
         
         service.signRequest(accessToken, request);
         Response response = request.send();         
         String Data=response.getBody(); // reading the string value 
-        System.out.println(Data);
-        
-        //count for inserting university names
-        int uniCount = 0;
+        System.out.println("data:"+Data);
+       
        
         try{
-        JSONObject json = (JSONObject) new JSONParser().parse(Data);        
-        Long _total=(Long) json.get("_total");
-        System.out.println("Check Data"+_total);
-        JSONArray y=(JSONArray) json.get("values");       
-       // System.out.println("Check Data"+y.toString());
-        PersonDetails pd= new PersonDetails();
-        String sname=null;
-        Mongo mongo = new Mongo("localhost", 27017);
-		DB db = mongo.getDB("test");
-		DBCollection collection = db.getCollection("test");	
-		System.out.println("count before insertion:"+collection.getCount());
-		//Get the data from linkedIn
+        JSONObject json = (JSONObject) new JSONParser().parse(Data);   
+        JSONObject people = (JSONObject) json.get("people");
+        System.out.println("People::"+people.get("_total"));
+        Long _total=(Long) people.get("_total");
+        //System.out.println("Check Data::"+_total);
+        JSONArray y=(JSONArray) people.get("values");       
+        System.out.println("Check Data::"+y.toString());
+       // PersonDetails pd= new PersonDetails();
+       String textUri =  "mongodb://unilinks:unilinks@ds053818.mongolab.com:53818/unilinks";
+        //"mongodb://uniinfo:uniinfo@ds053838.mongolab.com:53838/uniinfo";        
+        MongoClientURI uri = new MongoClientURI(textUri);		                  
+		MongoClient m = new MongoClient(uri);		  
+		DB db= m.getDB(uri.getDatabase());
+		DBCollection collection = db.getCollection("university");
         for(int i=0;i<y.size();i++){       
-        String s= y.get(i).toString(); 
+	        String s= y.get(i).toString();	        
+	        s= s.replace("publicProfileUrl","url");
+	        s=s.replace("}", ",\"SchoolName\":\"Texas A&M University\"}");
+	        System.out.println("y.get(i):::"+s);
+	        Object o = com.mongodb.util.JSON.parse(s);
+	        //System.out.println("our:"+sname.concat(m));
+	        DBObject dbObj = (DBObject) o;
+		    collection.insert(dbObj);
+		    System.out.println("Data inserted successfully");
+        }
         
-       // String fname = sname.concat(m);
-        Object o = com.mongodb.util.JSON.parse(s);
-        //System.out.println("our:"+sname.concat(m));
-        DBObject dbObj = (DBObject) o;
-	    collection.insert(dbObj);        
-       
-        }       
-       
-        }catch(Exception e){System.out.println(e.getMessage());}        
+    
+        }catch(Exception e){System.out.println("error::"+e.getMessage());}   
        
     }
 
